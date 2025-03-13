@@ -2,68 +2,44 @@
 package ppr
 
 import (
-	"strconv"
-
 	"api/logger"
 
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterRoutes adiciona a rota do cálculo de PPR
+// RegisterRoutes registra as rotas do módulo de PPR (Plano de Participação nos Resultados).
+//
+// Esta função adiciona as rotas necessárias ao grupo "/ppr", incluindo o endpoint "/ping"
+// para verificação de funcionamento e o endpoint "/calculate" para o cálculo do PPR.
+//
+// Parâmetros:
+//   - router (*gin.Engine): A instância do roteador Gin onde as rotas serão registradas.
 func RegisterRoutes(router *gin.Engine) {
+	// Cria um grupo de rotas para o módulo PPR
 	group := router.Group("/ppr")
 	{
+		// Rota de verificação de funcionamento (ping)
 		group.GET("/ping", func(c *gin.Context) {
 			c.JSON(200, gin.H{"message": "pong PPR"})
 		})
 
+		// Rota para calcular o PPR
 		group.GET("/calculate", calculatePPRHandler)
 	}
+
+	// Chama a função de verificação de saúde do módulo
 	healthCheck()
 }
 
-// calculatePPRHandler lida com a rota de cálculo de PPR
-func calculatePPRHandler(c *gin.Context) {
-	salaryStr := c.Query("salary")
-	pprValueStr := c.Query("ppr_value")
-	monthsWorkedValueStr := c.Query("months_worked")
-
-	// Converte os parâmetros de string para float
-	salary, err1 := strconv.ParseFloat(salaryStr, 64)
-	pprValue, err2 := strconv.ParseFloat(pprValueStr, 64)
-	monthsWorked, err3 := strconv.ParseFloat(monthsWorkedValueStr, 64)
-
-	// Verifica se houve erro na conversão ou se o salário e ppr são válidos
-	if err1 != nil || err2 != nil || salary <= 0 || pprValue <= 0 {
-		c.JSON(400, gin.H{"error": "Parâmetros inválidos"})
-		return
-	}
-
-	// Verifica o valor de monthsWorked
-	if err3 != nil || monthsWorked < 1 || monthsWorked > 12 {
-		// Se não for passado ou for inválido, define como 12
-		monthsWorked = 12
-	}
-
-	// Calcula o PPR
-	grossPPR, tax, netPPR := calculatePPR(salary, pprValue, monthsWorked)
-
-	// Prepara a resposta
-	response := gin.H{
-		"salary":       salary,
-		"monthsWorked": monthsWorked,
-		"gross_ppr":    grossPPR,
-		"tax":          tax,
-		"net_ppr":      netPPR,
-	}
-
-	// Retorna a resposta
-	c.JSON(200, response)
-}
+// healthCheck loga que o módulo PPR está saudável e funcionando corretamente.
 func healthCheck() {
+	// Loga uma mensagem de debug indicando que o módulo está funcionando
 	logger.Debug("Módulo PPR está saudável.")
 }
 
+// init é uma função especial que é chamada automaticamente quando o pacote é carregado.
+// Aqui, usamos para logar que o módulo PPR foi carregado com sucesso.
 func init() {
+	// Loga uma mensagem de debug indicando que o módulo foi carregado
 	logger.Debug("Módulo PPR carregado.")
 }

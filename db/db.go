@@ -9,55 +9,88 @@ import (
 	"api/logger"
 	"api/utils"
 
-	_ "github.com/go-sql-driver/mysql" // Importa o driver para registrar o driver MySQL
+	_ "github.com/go-sql-driver/mysql" // Importa o driver para registrar o driver MySQL.
 )
 
-// DbConnection establishes a connection to the MySQL/MariaDB database.
-// It retrieves the database connection parameters from environment variables.
-// Returns a pointer to the database connection and an error if the connection fails.
+// DbConnection estabelece uma conexão com o banco de dados MySQL/MariaDB.
+//
+// Esta função recupera os parâmetros de conexão das variáveis de ambiente,
+// valida essas informações e tenta abrir uma conexão com o banco de dados.
+//
+// Retorna:
+//   - *sql.DB: Ponteiro para a conexão com o banco de dados, se bem-sucedida.
+//   - error: Erro detalhado em caso de falha ao conectar.
 func DbConnection() (*sql.DB, error) {
-	// Fetch the database connection parameters from environment variables.
+	// Obtém os parâmetros de conexão do banco de dados a partir das variáveis de ambiente.
 	dbUser, dbPass, dbHost, dbPort, dbName := getDBConfig()
 
-	// Validate the database configuration.
+	// Valida se todos os parâmetros obrigatórios foram fornecidos.
 	if err := validateDBConfig(dbUser, dbPass, dbHost, dbPort, dbName); err != nil {
 		return nil, err
 	}
 
-	// Construct the Data Source Name (DSN) for connecting to the database.
+	// Constrói a string DSN (Data Source Name) para a conexão com o banco de dados.
 	dsn := buildDSN(dbUser, dbPass, dbHost, dbPort, dbName)
 
-	// Attempt to open a connection to the database using the DSN.
+	// Tenta abrir uma conexão com o banco de dados utilizando a DSN.
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err) // Wrap the error for more context.
+		return nil, fmt.Errorf("falha ao abrir conexão com o banco de dados: %w", err) // Adiciona contexto ao erro.
 	}
 
-	// Verify the connection to the database.
+	// Verifica se a conexão com o banco de dados foi estabelecida com sucesso.
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to connect to the database: %w", err) // Wrap the error for more context.
+		return nil, fmt.Errorf("falha ao conectar ao banco de dados: %w", err) // Adiciona contexto ao erro.
 	}
 
-	return db, nil // Return the database connection if successful.
+	return db, nil // Retorna a conexão ativa com o banco de dados.
 }
 
-// getDBConfig retrieves database configuration from environment variables.
+// getDBConfig recupera os parâmetros da conexão com o banco de dados a partir das variáveis de ambiente.
+//
+// Retorna:
+//   - string: Usuário do banco de dados.
+//   - string: Senha do banco de dados.
+//   - string: Host do banco de dados.
+//   - string: Porta de conexão do banco de dados.
+//   - string: Nome do banco de dados.
 func getDBConfig() (string, string, string, string, string) {
 	return utils.GetEnv("DB_USER"), utils.GetEnv("DB_PASS"), utils.GetEnv("DB_HOST"), utils.GetEnv("DB_PORT"), utils.GetEnv("DB_NAME")
 }
 
-// buildDSN constructs the Data Source Name (DSN) for the database connection.
+// buildDSN constrói a string DSN (Data Source Name) para a conexão com o banco de dados.
+//
+// A função também registra um log contendo a DSN de forma segura (omitindo a senha).
+//
+// Parâmetros:
+//   - user (string): Usuário do banco de dados.
+//   - password (string): Senha do banco de dados.
+//   - host (string): Host do banco de dados.
+//   - port (string): Porta de conexão do banco de dados.
+//   - dbName (string): Nome do banco de dados.
+//
+// Retorna:
+//   - string: DSN formatada para a conexão com o banco de dados.
 func buildDSN(user, password, host, port, dbName string) string {
+	// Monta a DSN sem a senha para log seguro.
 	safeDSN := fmt.Sprintf("%s:***@tcp(%s:%s)/%s", user, host, port, dbName)
 	logger.Debug("DSN: %s", safeDSN)
 
+	// Retorna a DSN completa para a conexão com o banco de dados.
 	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", user, password, host, port, dbName)
 }
 
+// validateDBConfig verifica se todas as variáveis essenciais para a conexão com o banco de dados foram fornecidas.
+//
+// Parâmetros:
+//   - params (string...): Lista de parâmetros obrigatórios para validação.
+//
+// Retorna:
+//   - error: Erro indicando a ausência de um ou mais parâmetros obrigatórios.
 func validateDBConfig(params ...string) error {
 	for _, param := range params {
 		if param == "" {
-			return fmt.Errorf("missing required database environment variable")
+			return fmt.Errorf("variável de ambiente obrigatória do banco de dados ausente")
 		}
 	}
 	return nil

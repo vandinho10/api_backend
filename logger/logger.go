@@ -1,4 +1,5 @@
 // pwd: /app/logger/logger.go
+
 package logger
 
 import (
@@ -20,6 +21,10 @@ var (
 	once           sync.Once
 )
 
+// Logger estrutura os atributos do logger.
+//
+// Contém informações sobre o caminho do log, prefixo, nível de log,
+// configuração para exibição no console e o arquivo de log em uso.
 type Logger struct {
 	logPath      string
 	logPrefix    string
@@ -28,7 +33,12 @@ type Logger struct {
 	logFile      *os.File
 }
 
-// Init inicializa o logger
+// Init inicializa a instância do logger.
+//
+// Carrega as variáveis de ambiente, configura o diretório de logs e define o nível de log.
+// Se ocorrer erro ao criar o diretório de logs ou abrir o arquivo, ele utiliza stdout.
+//
+// Não retorna valores.
 func Init() {
 	once.Do(func() {
 		_ = godotenv.Load("/app/.env")
@@ -39,18 +49,16 @@ func Init() {
 			logToConsole: getEnv("LOG_TO_CONSOLE", "true") == "true",
 		}
 
+		// Cria o diretório de logs se não existir
 		if err := os.MkdirAll(loggerInstance.logPath, 0755); err != nil {
 			log.Printf("Erro ao criar diretório de logs: %v. Usando stdout apenas.", err)
-			loggerInstance.logFile = nil // Evita tentativa de escrever em um arquivo inexistente
+			loggerInstance.logFile = nil
 		}
 
 		logFilePath := fmt.Sprintf("%s/%s.log", loggerInstance.logPath, loggerInstance.logPrefix)
 		var writers []io.Writer
-		// writers = append(writers, fileLogs)
-		// if loggerInstance.logToConsole {
-		// 	writers = append(writers, os.Stdout)
-		// }
 
+		// Abre o arquivo de log e adiciona ao writer
 		fileLogs, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 		if err != nil {
 			log.Printf("Erro ao abrir arquivo de log: %v. Usando stdout apenas.", err)
@@ -64,7 +72,12 @@ func Init() {
 	})
 }
 
-// GetLogger retorna a instância do logger
+// GetLogger retorna a instância do logger.
+//
+// Se o logger ainda não foi inicializado, ele chama Init() antes de retornar.
+//
+// Retorna:
+//   - *Logger: Instância do logger.
 func GetLogger() *Logger {
 	if loggerInstance == nil {
 		Init()
@@ -72,7 +85,14 @@ func GetLogger() *Logger {
 	return loggerInstance
 }
 
-// logMessage é uma função interna para registrar mensagens de log
+// logMessage registra uma mensagem de log com um determinado nível.
+//
+// Parâmetros:
+//   - level (string): Nível do log (DEBUG, INFO, WARN, ERROR).
+//   - message (string): Mensagem de log formatada.
+//   - args (...interface{}): Argumentos opcionais para formatação da mensagem.
+//
+// Não retorna valores.
 func (l *Logger) logMessage(level, message string, args ...interface{}) {
 	if !l.shouldLog(level) {
 		return
@@ -83,7 +103,13 @@ func (l *Logger) logMessage(level, message string, args ...interface{}) {
 	log.Println(formattedMessage)
 }
 
-// shouldLog verifica se o nível da mensagem deve ser registrado
+// shouldLog verifica se o nível da mensagem deve ser registrado com base na configuração do logger.
+//
+// Parâmetros:
+//   - level (string): Nível da mensagem a ser verificada.
+//
+// Retorna:
+//   - bool: true se a mensagem deve ser registrada, false caso contrário.
 func (l *Logger) shouldLog(level string) bool {
 	levels := map[string]int{"DEBUG": 1, "INFO": 2, "WARN": 3, "ERROR": 4}
 
@@ -95,7 +121,10 @@ func (l *Logger) shouldLog(level string) bool {
 	return levels[strings.ToUpper(level)] >= logLevel
 }
 
-// getCallerInfo retorna o nome do pacote, função e linha de onde o log foi chamado
+// getCallerInfo obtém informações sobre a função que chamou o logger.
+//
+// Retorna:
+//   - string: Nome do pacote, função e linha de onde o log foi chamado.
 func getCallerInfo() string {
 	for i := 2; i < 10; i++ { // Percorre a pilha até encontrar uma função fora do logger
 		pc, _, line, ok := runtime.Caller(i)
@@ -110,7 +139,7 @@ func getCallerInfo() string {
 	return "Unknown"
 }
 
-// Métodos públicos do Logger
+// Métodos públicos do Logger para registrar logs com diferentes níveis.
 func Debug(message string, args ...interface{}) { GetLogger().logMessage("DEBUG", message, args...) }
 func Info(message string, args ...interface{})  { GetLogger().logMessage("INFO", message, args...) }
 func Warn(message string, args ...interface{})  { GetLogger().logMessage("WARN", message, args...) }
@@ -118,18 +147,25 @@ func Error(message string, args ...interface{}) { GetLogger().logMessage("ERROR"
 func Fatal(message string, args ...interface{}) { GetLogger().logMessage("FATAL", message, args...) }
 func Panic(message string, args ...interface{}) { GetLogger().logMessage("PANIC", message, args...) }
 
-// LoggerMiddleware registra logs de requisições HTTP do Gin
+// LoggerMiddleware cria um middleware para registrar logs de requisições HTTP no Gin.
+//
+// O middleware registra informações como método da requisição, IP do cliente, URI solicitada
+// e tempo de duração da requisição. Se houver erros no contexto, eles serão registrados.
+//
+// Retorna:
+//   - gin.HandlerFunc: Função middleware para ser usada no Gin.
 func LoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
 		c.Next() // Processa a requisição
 		duration := time.Since(start)
 
-		clientIP := c.GetHeader("CF-Connecting-IP") // Prioridade para Cloudflare
+		// Obtém o IP do cliente, priorizando cabeçalhos de proxies reversos.
+		clientIP := c.GetHeader("CF-Connecting-IP")
 		if clientIP == "" {
-			clientIP = c.GetHeader("X-Forwarded-For") // Verifica proxy reverso
+			clientIP = c.GetHeader("X-Forwarded-For")
 			if clientIP == "" {
-				clientIP = c.ClientIP() // Fallback padrão
+				clientIP = c.ClientIP()
 			}
 		}
 
@@ -145,15 +181,23 @@ func LoggerMiddleware() gin.HandlerFunc {
 	}
 }
 
-// Close fecha o arquivo de log
+// Close fecha o arquivo de log caso esteja aberto.
+//
+// Não retorna valores.
 func Close() {
 	if loggerInstance != nil && loggerInstance.logFile != nil {
 		loggerInstance.logFile.Close()
 	}
-
 }
 
-// getEnv retorna a variável de ambiente ou um valor padrão
+// getEnv obtém uma variável de ambiente, retornando um valor padrão se não estiver definida.
+//
+// Parâmetros:
+//   - key (string): Nome da variável de ambiente.
+//   - defaultValue (string): Valor padrão caso a variável não esteja definida.
+//
+// Retorna:
+//   - string: Valor da variável de ambiente ou o valor padrão.
 func getEnv(key, defaultValue string) string {
 	if value, exists := os.LookupEnv(key); exists {
 		return value
