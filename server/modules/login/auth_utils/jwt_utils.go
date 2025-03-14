@@ -1,4 +1,5 @@
 // pwd: /app/server/modules/login/utils/jwt_utils.go
+
 package auth_utils
 
 import (
@@ -12,6 +13,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Claims define a estrutura dos claims do JWT.
 type Claims struct {
 	ID          int    `json:"id"`
 	Username    string `json:"username"`
@@ -19,9 +21,14 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
+// SecretKey contém a chave secreta utilizada para assinar os tokens JWT.
 var SecretKey = []byte(utils.GetEnv("JWT_SECRET"))
 
-// GenerateJWT gera um novo token JWT para o ID de usuário fornecido.
+// GenerateJWT gera um token JWT com base no ID do usuário, nome de usuário e nível de acesso.
+//
+// Retorna:
+//   - string: token JWT assinado.
+//   - error: erro em caso de falha na geração do token.
 func GenerateJWT(userID int, username string, accessLevel int) (string, error) {
 	logger.Debug("Gerando um novo token JWT para o usuário ID=%v", userID)
 
@@ -33,6 +40,7 @@ func GenerateJWT(userID int, username string, accessLevel int) (string, error) {
 
 	expirationDate := time.Now().Add(expirationTime)
 	logger.Debug("Data de expiração do token: %v", expirationDate)
+
 	claims := Claims{
 		ID:          userID,
 		Username:    username,
@@ -54,7 +62,12 @@ func GenerateJWT(userID int, username string, accessLevel int) (string, error) {
 	return signedToken, nil
 }
 
-// HashAndCheckPassword gera um hash bcrypt da senha e compara com o hash fornecido.
+// HashAndCheckPassword gera um hash da senha e compara com o hash fornecido.
+//
+// Retorna:
+//   - string: senha criptografada gerada.
+//   - bool: verdadeiro se a senha fornecida corresponder ao hash armazenado.
+//   - error: erro em caso de falha na geração ou verificação do hash.
 func HashAndCheckPassword(password, hash string) (string, bool, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -65,7 +78,11 @@ func HashAndCheckPassword(password, hash string) (string, bool, error) {
 	return string(hashedPassword), err == nil, nil
 }
 
-// GetExpirationTime recupera o tempo de expiração do JWT a partir da variável de ambiente "JWT_EXPIRE".
+// GetExpirationTime recupera o tempo de expiração do token JWT da variável de ambiente.
+//
+// Retorna:
+//   - time.Duration: duração configurada para expiração do token.
+//   - error: erro se a conversão do tempo falhar.
 func GetExpirationTime() (time.Duration, error) {
 	expirationStr := utils.GetEnv("JWT_EXPIRE")
 	if expirationStr == "" {
@@ -81,7 +98,11 @@ func GetExpirationTime() (time.Duration, error) {
 	return expirationTime, nil
 }
 
-// ValidateJWT valida um token JWT fornecido.
+// ValidateJWT verifica se um token JWT é válido.
+//
+// Retorna:
+//   - bool: verdadeiro se o token for válido.
+//   - error: erro se o token for inválido ou expirado.
 func ValidateJWT(tokenString string) (bool, error) {
 	logger.Debug("Validando o token JWT")
 
@@ -103,6 +124,10 @@ func ValidateJWT(tokenString string) (bool, error) {
 }
 
 // CalculateTokenExpirationTime calcula o tempo restante até a expiração de um token JWT.
+//
+// Retorna:
+//   - time.Duration: tempo restante até a expiração do token.
+//   - error: erro se o token for inválido ou expirado.
 func CalculateTokenExpirationTime(tokenString string) (time.Duration, error) {
 	tokenString = RemoveBearerPrefix(tokenString)
 
@@ -141,7 +166,10 @@ func CalculateTokenExpirationTime(tokenString string) (time.Duration, error) {
 	return timeRemaining, nil
 }
 
-// RemoveBearerPrefix remove o prefixo "Bearer " de um cabeçalho de autenticação.
+// RemoveBearerPrefix remove o prefixo "Bearer " de um token no cabeçalho de autenticação.
+//
+// Retorna:
+//   - string: token JWT sem o prefixo "Bearer ".
 func RemoveBearerPrefix(authHeader string) string {
 	logger.Debug("Conteúdo do cabeçalho de autenticação: %s", authHeader)
 	if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
@@ -150,7 +178,11 @@ func RemoveBearerPrefix(authHeader string) string {
 	return authHeader
 }
 
-// ValidateAndExtractClaims valida um token JWT e retorna os claims extraídos.
+// ValidateAndExtractClaims valida um token JWT e retorna seus claims.
+//
+// Retorna:
+//   - *Claims: claims extraídos do token JWT.
+//   - error: erro se o token for inválido ou se os claims não puderem ser extraídos.
 func ValidateAndExtractClaims(tokenString string) (*Claims, error) {
 	logger.Debug("Token recebido: %v", tokenString)
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
@@ -169,8 +201,6 @@ func ValidateAndExtractClaims(tokenString string) (*Claims, error) {
 
 	// Recupera os claims
 	claims, ok := token.Claims.(jwt.MapClaims)
-	logger.Debug("Token.Claims: %v", token.Claims.(jwt.MapClaims))
-
 	logger.Debug("Claims extraídos do token: %v", claims)
 	if !ok {
 		logger.Warn("Falha ao extrair claims do token")

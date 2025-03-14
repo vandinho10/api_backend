@@ -41,6 +41,14 @@ type AuthResponse struct {
 }
 
 // Authenticate verifica as credenciais do usuário e retorna um token JWT com as informações do usuário
+//
+// Parâmetros:
+// - loginData: LoginRequest - Dados para autenticação (nome, username, email e senha).
+//
+// Respostas:
+// - 200 OK: Retorna o token JWT, informações do usuário e tempo restante até a expiração do token.
+// - 400 Bad Request: Se as credenciais estiverem incorretas ou faltando.
+// - 500 Internal Server Error: Se ocorrer um erro durante o processo de autenticação.
 func Authenticate(loginData LoginRequest) (*AuthResponse, error) {
 	dbConn, err := db.DbConnection()
 	if err != nil {
@@ -88,7 +96,6 @@ func Authenticate(loginData LoginRequest) (*AuthResponse, error) {
 	}
 
 	// Calcular o tempo restante até o vencimento do token (exemplo: 3600 segundos)
-	// Pode ser configurado de acordo com a lógica de expiração do JWT
 	token = "Bearer " + token
 	timeRemaining, err := auth_utils.CalculateTokenExpirationTime(token) // Exemplo de tempo restante em segundos (1 hora)
 	if err != nil {
@@ -107,6 +114,14 @@ func Authenticate(loginData LoginRequest) (*AuthResponse, error) {
 }
 
 // GetUserByEmail busca um usuário pelo e-mail no banco de dados
+//
+// Parâmetros:
+// - email: string - O e-mail do usuário para buscar no banco.
+//
+// Respostas:
+// - 200 OK: Retorna as informações do usuário.
+// - 404 Not Found: Se o usuário não for encontrado.
+// - 500 Internal Server Error: Se ocorrer um erro no processo de busca.
 func GetUserByEmail(email string) (*User, error) {
 	// Estabelece a conexão com o banco de dados
 	dbConn, err := db.DbConnection()
@@ -132,6 +147,14 @@ func GetUserByEmail(email string) (*User, error) {
 }
 
 // CreateNewUser insere um novo usuário no banco de dados
+//
+// Parâmetros:
+// - user: User - O usuário que será criado no sistema.
+//
+// Respostas:
+// - 201 Created: Se o usuário for criado com sucesso.
+// - 400 Bad Request: Se os dados do usuário forem inválidos.
+// - 500 Internal Server Error: Se ocorrer um erro durante o processo de criação do usuário.
 func CreateNewUser(user User) error {
 	logger.Debug("Criando novo usuário: %v", user.Username)
 	dbConn, err := db.DbConnection()
@@ -162,6 +185,13 @@ func CreateNewUser(user User) error {
 }
 
 // CheckUserExists verifica se o nome de usuário já existe no banco
+//
+// Parâmetros:
+// - username: string - O nome de usuário a ser verificado.
+//
+// Respostas:
+// - 200 OK: Se o usuário não existir, retorna nil.
+// - 409 Conflict: Se o usuário já existir.
 func CheckUserExists(username string) error {
 	// Estabelece a conexão com o banco de dados
 	dbConn, err := db.DbConnection()
@@ -190,11 +220,12 @@ func CheckUserExists(username string) error {
 // AddTokenToBlacklist adiciona um token à blacklist de tokens JWT no banco de dados.
 //
 // Parâmetros:
-// - tokenString: Token JWT a ser invalidado.
-// - expiresAt: Data e hora de expiração do token.
+// - tokenString: string - Token JWT a ser invalidado.
+// - expiresAt: time.Time - Data e hora de expiração do token.
 //
-// Retorno:
-// - Retorna erro caso ocorra falha na inserção.
+// Respostas:
+// - 200 OK: Se o token foi adicionado com sucesso à blacklist.
+// - 500 Internal Server Error: Se ocorrer um erro durante o processo de inserção.
 func AddTokenToBlacklist(tokenString string, expiresAt time.Time) error {
 	// Estabelece conexão com o banco de dados
 	dbConn, err := db.DbConnection()
@@ -215,6 +246,7 @@ func AddTokenToBlacklist(tokenString string, expiresAt time.Time) error {
 }
 
 // IsTokenBlacklisted verifica se um token está na blacklist.
+//
 // Retorna true se o token estiver na blacklist, false caso contrário.
 // Em caso de erro, assume-se que o token é válido (retorna false).
 func IsTokenBlacklisted(tokenString string) bool {

@@ -1,4 +1,5 @@
 // pwd: /app/server/modules/login/controllers/auth_controller.go
+
 package controllers
 
 import (
@@ -12,7 +13,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AuthenticateUser autentica um usuário com base nos dados fornecidos na requisição JSON.
+// AuthenticateUser autentica um usuário com base nos dados fornecidos na requisição JSON e retorna um token JWT.
+//
+// Parâmetros:
+// - c: *gin.Context - Contexto da requisição.
+//
+// Respostas:
+// - 200 OK: Retorna o token JWT, informações do usuário e tempo restante até a expiração.
+// - 400 Bad Request: Se os dados da requisição estiverem inválidos.
+// - 401 Unauthorized: Se as credenciais forem inválidas.
 func AuthenticateUser(c *gin.Context) {
 	var loginData models.LoginRequest
 	if err := c.ShouldBindJSON(&loginData); err != nil {
@@ -27,7 +36,6 @@ func AuthenticateUser(c *gin.Context) {
 		return
 	}
 
-	// Retorna a resposta completa com token, usuário e tempo restante
 	c.JSON(http.StatusOK, gin.H{
 		"token": authResponse.Token,
 		"user": gin.H{
@@ -40,30 +48,33 @@ func AuthenticateUser(c *gin.Context) {
 	})
 }
 
-// IsLoggedIn verifica se o usuário está autenticado e retorna informações sobre o usuário e o tempo restante até a expiração do token JWT.
+// IsLoggedIn verifica se o usuário está autenticado e retorna o tempo restante de expiração do token.
+//
+// Parâmetros:
+// - c: *gin.Context - Contexto da requisição.
+//
+// Respostas:
+// - 200 OK: Retorna se o usuário está logado e o tempo restante do token.
+// - 401 Unauthorized: Se o token não for fornecido, for inválido ou estiver expirado.
 func IsLoggedIn(c *gin.Context) {
-	// Recupera o token JWT do header Authorization
 	tokenString := c.GetHeader("Authorization")
 	if tokenString == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token JWT não fornecido"})
 		return
 	}
 
-	// Recupera os dados do usuário do contexto
 	userID, exists := c.Get("user_id")
 	if !exists || userID == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
 		return
 	}
 
-	// Verifica se o token está na blacklist
 	if models.IsTokenBlacklisted(tokenString) {
 		logger.Warn("Tentativa de uso de token inválido")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido ou expirado"})
 		return
 	}
 
-	// Calcula o tempo restante até a expiração do token
 	timeRemaining, err := auth_utils.CalculateTokenExpirationTime(tokenString)
 	logger.Debug("Tempo restante até a expiração do token: %v", timeRemaining)
 	if err != nil {
@@ -71,14 +82,21 @@ func IsLoggedIn(c *gin.Context) {
 		return
 	}
 
-	// Retorna a resposta no formato desejado
 	c.JSON(http.StatusOK, gin.H{
 		"logged_in":      true,
-		"time_remaining": timeRemaining.String(), // Inclui o tempo restante até a expiração do token
+		"time_remaining": timeRemaining.String(),
 	})
 }
 
-// LogoutUser realiza o logout do usuário, removendo o token JWT.
+// LogoutUser realiza o logout do usuário, invalidando o token JWT.
+//
+// Parâmetros:
+// - c: *gin.Context - Contexto da requisição.
+//
+// Respostas:
+// - 200 OK: Se o logout for bem-sucedido.
+// - 400 Bad Request: Se o token não for fornecido ou houver erro ao processar o logout.
+// - 401 Unauthorized: Se o token for inválido ou já estiver na blacklist.
 func LogoutUser(c *gin.Context) {
 	tokenString := c.GetHeader("Authorization")
 	if tokenString == "" {
@@ -86,24 +104,20 @@ func LogoutUser(c *gin.Context) {
 		return
 	}
 
-	// Verifica se o token está na blacklist
 	if models.IsTokenBlacklisted(tokenString) {
 		logger.Warn("Tentativa de uso de token inválido")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido ou expirado"})
 		return
 	}
 
-	// Calcula o tempo de expiração do token
 	expirationDuration, err := auth_utils.CalculateTokenExpirationTime(tokenString)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Erro ao calcular expiração do token"})
 		return
 	}
 
-	// Converte para um time.Time válido
 	expirationTime := time.Now().Add(expirationDuration)
 
-	// Adiciona o token à blacklist
 	err = models.AddTokenToBlacklist(tokenString, expirationTime)
 	if err != nil {
 		logger.Error("Erro ao adicionar token à blacklist: %v", err)
@@ -116,10 +130,17 @@ func LogoutUser(c *gin.Context) {
 }
 
 // AddNewUser cria um novo usuário no sistema com base nos dados fornecidos na requisição JSON.
+//
+// Parâmetros:
+// - c: *gin.Context - Contexto da requisição.
+//
+// Respostas:
+// - 201 Created: Se o usuário for criado com sucesso.
+// - 400 Bad Request: Se os dados forem inválidos ou o usuário já existir.
+// - 500 Internal Server Error: Se ocorrer um erro ao criar o usuário.
 func AddNewUser(c *gin.Context) {
 	logger.Debug("Adicionando novo usuário")
 
-	logger.Debug("Validando token JWT")
 	tokenString := c.GetHeader("Authorization")
 	if tokenString == "" {
 		logger.Warn("Token JWT não fornecido")
@@ -127,7 +148,6 @@ func AddNewUser(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Validando dados do usuário")
 	var newUser models.User
 	if err := c.ShouldBindJSON(&newUser); err != nil {
 		logger.Error("Erro ao validar dados do usuário: %v", err)
@@ -135,7 +155,6 @@ func AddNewUser(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Verificando se o usuário já existe")
 	err := models.CheckUserExists(newUser.Username)
 	if err != nil {
 		logger.Warn("Usuário já existe")
@@ -143,7 +162,6 @@ func AddNewUser(c *gin.Context) {
 		return
 	}
 
-	logger.Debug("Criando novo usuário")
 	err = models.CreateNewUser(newUser)
 	if err != nil {
 		logger.Error("Erro ao criar usuário: %v", err)
@@ -154,9 +172,3 @@ func AddNewUser(c *gin.Context) {
 	logger.Info("Usuário registrado com sucesso")
 	c.JSON(http.StatusCreated, gin.H{"message": "Usuário registrado com sucesso"})
 }
-
-// // ValidateTokenHandler valida o token JWT enviado
-// func ValidateTokenHandler(c *gin.Context) {
-// 	userID, _ := c.Get("user_id")
-// 	c.JSON(http.StatusOK, gin.H{"message": "Token válido", "user_id": userID})
-// }
